@@ -2,11 +2,10 @@ package gorm_test
 
 import (
 	"errors"
-
-	"github.com/jinzhu/gorm"
-
 	"reflect"
 	"testing"
+
+	"github.com/euforia/gorm"
 )
 
 func (s *Product) BeforeCreate() (err error) {

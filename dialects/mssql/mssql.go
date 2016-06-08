@@ -8,11 +8,11 @@ import (
 	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
-	"github.com/jinzhu/gorm"
+	"github.com/euforia/gorm"
 )
 
 func setIdentityInsert(scope *gorm.Scope) {
-	if scope.Dialect().GetName() == "mssql" {
+	if scope.Dialect().GetName() == "mssql" && !scope.PrimaryKeyZero() {
 		scope.NewDB().Exec(fmt.Sprintf("SET IDENTITY_INSERT %v ON", scope.TableName()))
 	}
 }
