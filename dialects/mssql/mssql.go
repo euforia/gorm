@@ -147,5 +147,5 @@ func (mssql) SelectFromDummyTable() string {
 }
 
 func (mssql) LastInsertIDReturningSuffix(tableName, columnName string) string {
-	return ""
+	return "SELECT SCOPE_IDENTITY()"
 }
