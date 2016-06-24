@@ -727,6 +727,67 @@ func TestNestedPreload11(t *testing.T) {
 	}
 }
 
+type LevelC1 struct {
+	ID        uint
+	Value     string
+	LevelC2ID uint
+}
+
+type LevelC2 struct {
+	ID      uint
+	Value   string
+	LevelC1 LevelC1
+}
+
+type LevelC3 struct {
+	ID        uint
+	Value     string
+	LevelC2ID uint
+	LevelC2   LevelC2
+}
+
+func TestNestedPreload12(t *testing.T) {
+	DB.DropTableIfExists(&LevelC2{})
+	DB.DropTableIfExists(&LevelC3{})
+	DB.DropTableIfExists(&LevelC1{})
+	if err := DB.AutoMigrate(&LevelC1{}, &LevelC2{}, &LevelC3{}).Error; err != nil {
+		t.Error(err)
+	}
+
+	level2 := LevelC2{
+		Value: "c2",
+		LevelC1: LevelC1{
+			Value: "c1",
+		},
+	}
+	DB.Create(&level2)
+
+	want := []LevelC3{
+		{
+			Value:   "c3-1",
+			LevelC2: level2,
+		}, {
+			Value:   "c3-2",
+			LevelC2: level2,
+		},
+	}
+
+	for i := range want {
+		if err := DB.Create(&want[i]).Error; err != nil {
+			t.Error(err)
+		}
+	}
+
+	var got []LevelC3
+	if err := DB.Preload("LevelC2").Preload("LevelC2.LevelC1").Find(&got).Error; err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %s; want %s", toJSONString(got), toJSONString(want))
+	}
+}
+
 func TestManyToManyPreloadWithMultiPrimaryKeys(t *testing.T) {
 	if dialect := os.Getenv("GORM_DIALECT"); dialect == "" || dialect == "sqlite" {
 		return
@@ -1083,6 +1144,81 @@ func TestNestedManyToManyPreload3(t *testing.T) {
 	level22 := &Level2{
 		Value:   "Level2-2",
 		Level1s: []*Level1{level1Zh, level1En},
+	}
+
+	wants := []*Level3{
+		{
+			Value:  "Level3-1",
+			Level2: level21,
+		},
+		{
+			Value:  "Level3-2",
+			Level2: level22,
+		},
+		{
+			Value:  "Level3-3",
+			Level2: level21,
+		},
+	}
+
+	for _, want := range wants {
+		if err := DB.Save(&want).Error; err != nil {
+			t.Error(err)
+		}
+	}
+
+	var gots []*Level3
+	if err := DB.Preload("Level2.Level1s", func(db *gorm.DB) *gorm.DB {
+		return db.Order("level1.id ASC")
+	}).Find(&gots).Error; err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(gots, wants) {
+		t.Errorf("got %s; want %s", toJSONString(gots), toJSONString(wants))
+	}
+}
+
+func TestNestedManyToManyPreload3ForStruct(t *testing.T) {
+	type (
+		Level1 struct {
+			ID    uint
+			Value string
+		}
+		Level2 struct {
+			ID      uint
+			Value   string
+			Level1s []Level1 `gorm:"many2many:level1_level2;"`
+		}
+		Level3 struct {
+			ID       uint
+			Value    string
+			Level2ID sql.NullInt64
+			Level2   Level2
+		}
+	)
+
+	DB.DropTableIfExists(&Level1{})
+	DB.DropTableIfExists(&Level2{})
+	DB.DropTableIfExists(&Level3{})
+	DB.DropTableIfExists("level1_level2")
+
+	if err := DB.AutoMigrate(&Level3{}, &Level2{}, &Level1{}).Error; err != nil {
+		t.Error(err)
+	}
+
+	level1Zh := Level1{Value: "zh"}
+	level1Ru := Level1{Value: "ru"}
+	level1En := Level1{Value: "en"}
+
+	level21 := Level2{
+		Value:   "Level2-1",
+		Level1s: []Level1{level1Zh, level1Ru},
+	}
+
+	level22 := Level2{
+		Value:   "Level2-2",
+		Level1s: []Level1{level1Zh, level1En},
 	}
 
 	wants := []*Level3{
